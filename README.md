@@ -10,8 +10,8 @@ Mainly getting an array of dates to use for querying and/or displaying
 [![Build Status](https://travis-ci.org/davispeixoto/dates_for_reports.svg?branch=master)](https://travis-ci.org/davispeixoto/dates_for_reports)
 
 ## Installation
-The workflow package can be installed via [Composer](http://getcomposer.org) by requiring the
-`davispeixoto/workflow` package in your project's `composer.json`.
+This package can be installed via [Composer](http://getcomposer.org) by requiring the
+`davispeixoto/dates_for_reports` package in your project's `composer.json`.
 
 ```json
 {
