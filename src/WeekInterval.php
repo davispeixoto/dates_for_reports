@@ -2,32 +2,39 @@
 
 namespace DavisPeixoto\ReportDates;
 
+use DateInterval;
 use DateTime;
+use Exception;
 
 class WeekInterval
 {
     /**
-     * @var DateTime $start_date
+     * @var DateTime $startDate
      */
-    private $start_date;
+    private $startDate;
 
     /**
-     * @var DateTime $end_date
+     * @var DateTime $endDate
      */
-    private $end_date;
+    private $endDate;
 
     /**
-     * @var integer $interval
+     * @var DatesConfig $config
      */
-    private $interval;
+    private $config;
 
-    public function __construct(DateTime $start_date, DateTime $end_date)
+    /**
+     * WeekInterval constructor.
+     *
+     * @param DateTime $startDate
+     * @param DateTime $endDate
+     * @param DatesConfig $config
+     */
+    public function __construct(DateTime $startDate, DateTime $endDate, DatesConfig $config)
     {
-        $this->start_date = $start_date;
-        $this->end_date = $end_date;
-
-        $interval = $end_date->diff($start_date);
-        $this->interval = (int)$interval->format('%a') + 1;
+        $this->startDate = $startDate;
+        $this->endDate = $endDate;
+        $this->config = $config;
     }
 
     /**
@@ -35,7 +42,7 @@ class WeekInterval
      */
     public function getStartDate(): DateTime
     {
-        return $this->start_date;
+        return $this->startDate;
     }
 
     /**
@@ -43,15 +50,15 @@ class WeekInterval
      */
     public function getEndDate(): DateTime
     {
-        return $this->end_date;
+        return $this->endDate;
     }
 
     /**
      * @return int
      */
-    public function getWorkingDays(): int
+    public function getBusinessDays(): int
     {
-        return $this->interval;
+        return $this->countBusinessDays();
     }
 
     /**
@@ -59,7 +66,7 @@ class WeekInterval
      */
     public function getWeekNumber(): string
     {
-        return $this->end_date->format('W');
+        return $this->endDate->format('W');
     }
 
     /**
@@ -67,7 +74,7 @@ class WeekInterval
      */
     public function getYearWeek(): string
     {
-        return $this->end_date->format('oW');
+        return $this->endDate->format('oW');
     }
 
     /**
@@ -75,6 +82,60 @@ class WeekInterval
      */
     public function getYearMonth(): string
     {
-        return $this->end_date->format('Ym');
+        return $this->endDate->format('Ym');
+    }
+
+    private function countBusinessDays()
+    {
+        $startDate = clone $this->startDate;
+        $count = 0;
+
+        while ($startDate <= $this->endDate) {
+            if ($this->isBusinessDay($startDate)) {
+                $count++;
+            }
+
+            $startDate = $this->incrementDay($startDate);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param DayNumber $day
+     * @return bool
+     */
+    private function isBusinessDay(DayNumber $day)
+    {
+        foreach ($this->config->getBusinessDays() as $businessDay) {
+            if ($day->equals($businessDay)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param DateTime $date
+     * @return DateTime
+     * @throws Exception
+     */
+    private function incrementDay(DateTime $date)
+    {
+        $oneDay = new DateInterval('P1D');
+        $oneHour = new DateInterval('PT1H');
+
+        $date->add($oneDay);
+
+        if ($date->format('h') === '01') {
+            $date->sub($oneHour);
+        }
+
+        if ($date->format('h') === '23') {
+            $date->add($oneHour);
+        }
+
+        return $date;
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace DavisPeixoto\ReportDates;
 
 use DateInterval;
@@ -13,6 +14,16 @@ class Dates
     private $config;
 
     /**
+     * @var DateTime $startDate
+     */
+    private $startDate;
+
+    /**
+     * @var DateTime $endDate
+     */
+    private $endDate;
+
+    /**
      * Dates constructor.
      *
      * @param DatesConfig $config
@@ -23,135 +34,206 @@ class Dates
     }
 
     /**
+     * Returns an array of week intervals
+     *
      * @param DateTime $startDate
      * @param DateTime $endDate
-     * @param bool $full
-     * @param bool $inclusive
+     * @param bool $full include non-business days if true
+     * @param bool $inclusive decide whether we should expand the days until the week start or not
      *
      * @return WeekInterval[]
      * @throws Exception
      */
-    public function get_weeks_break(DateTime $startDate, DateTime $endDate, $full = false, $inclusive = false)
+    public function getWeeksBreak(DateTime $startDate, DateTime $endDate, $full = false, $inclusive = false)
     {
+        $this->startDate = $startDate;
+        $this->endDate = $endDate;
         $output = [];
-        $innerArray = [];
-        $isOpen = false;
-        $i = 0;
-
-        $interval = new DateInterval('P1D');
-        $daylightSavingsTime = new DateInterval('PT1H');
 
         if ($inclusive) {
-            $oldStart = clone $startDate;
-            $oldEnd = clone $endDate;
-
-            $aux = new DateTime();
-
-            if ($oldStart->format('w') !== '0') {
-                $aux->setISODate($oldStart->format('o'), $oldStart->format('W'), 0);
-                $startDate = clone $aux;
-            }
-
-            if ($oldEnd->format('w') !== '6') {
-                $aux->setISODate($oldEnd->format('o'), $oldEnd->format('W'), 6);
-                $endDate = clone $aux;
-            }
+            $this->addPaddingDays();
         }
 
-        $start = clone $startDate;
-        $end = clone $endDate;
-
-        while ($start <= $end) {
-            $str = (int)$start->format('w');
-
-            if (!$full) {
-                if (in_array($str, range(1, 5)) && !$isOpen) {
-                    $innerArray[$i]['start'] = clone $start;
-                    $isOpen = true;
-                }
-
-                if (!in_array($str, range(1, 5)) && $isOpen) {
-                    $x = clone $start;
-                    $x->sub($interval);
-                    $innerArray[$i]['end'] = clone $x;
-                    $isOpen = false;
-                    $i++;
-                }
-
-                if ($start == $end && $isOpen) {
-                    $innerArray[$i]['end'] = clone $start;
-                    $isOpen = false;
-                }
-            } else {
-                if (($str !== 6) && !$isOpen) {
-                    $innerArray[$i]['start'] = clone $start;
-                    $isOpen = true;
-                }
-
-                if (($str === 6) && $isOpen) {
-                    $x = clone $start;
-                    $innerArray[$i]['end'] = clone $x;
-                    $isOpen = false;
-                    $i++;
-                }
-            }
-
-            if (($start == $end) && $isOpen) {
-                $innerArray[$i]['end'] = clone $start;
-                $isOpen = false;
-            }
-
-            $start->add($interval);
-
-            // fix for day light savings time
-            if ($start->format('h') === "01") {
-                $start->sub($daylightSavingsTime);
-            }
-
-            if ($start->format('h') === "23") {
-                $start->add($daylightSavingsTime);
-            }
-        }
-
-        foreach ($innerArray as $key => $value) {
-            $weekInterval = new WeekInterval($value['start'], $value['end']);
-            $output[$key] = $weekInterval;
+        foreach ($this->makeIntervals($full) as $key => $value) {
+            $output[$key] = new WeekInterval($value['start'], $value['end']);
         }
 
         return $output;
     }
 
-    public function unwrap_week($yearweek, $yearmonth)
+    /**
+     * Returns a week interval, based on year week and year month
+     * Both parameters are necessary because a given week can have
+     * days from two different months, and in this case, we might
+     * want to pull days from one month, another month, or even
+     * the entire week, regardless the month
+     *
+     * @param string $yearWeek
+     * @param string $yearMonth
+     * @param bool $full
+     * @param bool $inclusive
+     * @return WeekInterval
+     * @throws Exception
+     */
+    public function unwrapWeek(
+        string $yearWeek,
+        string $yearMonth,
+        bool $full = false,
+        bool $inclusive = false
+    ): WeekInterval {
+        $aux = str_split($yearMonth, 4);
+        $aux[] = '01';
+        $objStart = new DateTime(implode('-', $aux));
+
+        $startDate = new DateTime(date('Y-m-01', $objStart->getTimestamp()));
+        $endDate = new DateTime(date('Y-m-t', $objStart->getTimestamp()));
+
+        $weeks = $this->getWeeksBreak($startDate, $endDate, $full, $inclusive);
+
+        foreach ($weeks as $week) {
+            if ($week->getYearWeek() === $yearWeek) {
+                return $week;
+            }
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function adjustDayLightSavingsTime() :void
     {
-        $output = array();
+        $oneHour = new DateInterval('PT1H');
 
-        $x = str_split($yearmonth, 4);
-        $x[] = "01";
-        $obj_start = DateTime::createFromFormat('Y-m-d', implode('-', $x));
+        if ($this->startDate->format('h') === '01') {
+            $this->startDate->sub($oneHour);
+        }
 
-        $start_date = date('Y-m-01', $obj_start->getTimeStamp());
-        $end_date = date('Y-m-t', $obj_start->getTimeStamp());
+        if ($this->startDate->format('h') === '23') {
+            $this->startDate->add($oneHour);
+        }
+    }
 
-        $weeks = $this->get_weeks_break($start_date, $end_date);
-        $weeks_full = $this->get_weeks_break($start_date, $end_date, true);
-        $today = new DateTime();
+    private function addPaddingDays()
+    {
+        if ($this->startDate->format('w') !== $this->config->getWeeksStartsOn()) {
+            $this->startDate->setISODate(
+                (int) $this->startDate->format('o'),
+                (int) $this->startDate->format('W'),
+                (int) $this->config->getWeeksStartsOn()->getValue()
+            );
+        }
 
-        foreach ($weeks as $key => $value) {
-            if ($value['yearweek'] == $yearweek) {
-                $output['start'] = $value['start_date'];
-                $output['end'] = $value['end_date'];
+        if ($this->endDate->format('w') !== $this->config->getWeeksEndsOn()) {
+            $this->endDate->setISODate(
+                (int) $this->endDate->format('o'),
+                (int) $this->endDate->format('W'),
+                (int) $this->config->getWeeksEndsOn()->getValue()
+            );
+        }
+    }
 
-                $endDateObj = DateTime::createFromFormat('Y-m-d', $output['end']);
+    /**
+     * @param bool $full
+     * @return array
+     *
+     * @throws Exception
+     */
+    private function makeIntervals(bool $full): array
+    {
+        if ($full) {
+            return $this->makeFull();
+        }
 
-                if ($today > $endDateObj) {
-                    foreach ($weeks_full as $innerWeek) {
-                        if ($value['yearweek'] == $innerWeek['yearweek']) {
-                            $output['start'] = $innerWeek['start_date'];
-                            $output['end'] = $innerWeek['end_date'];
-                            break;
-                        }
-                    }
-                }
+        return $this->makeBusinessOnly();
+    }
+
+    /**
+     * @return array
+     * @throws Exception
+     */
+    private function makeFull() :array
+    {
+        $output = [];
+        $index = 0;
+        $isOpen = false;
+        $oneDay = new DateInterval('P1D');
+
+        while ($this->startDate <= $this->endDate) {
+            $str = $this->startDate->format('w');
+
+            if (!$isOpen && ($str !== $this->config->getWeeksEndsOn()->getValue())) {
+                $output[$index]['start'] = clone $this->startDate;
+                $isOpen = true;
+            }
+
+            if ($isOpen && ($str === $this->config->getWeeksEndsOn()->getValue())) {
+                $output[$index]['end'] = clone $this->startDate;
+                $isOpen = false;
+                $index++;
+            }
+
+            if ($isOpen && ($this->startDate == $this->endDate)) {
+                $output[$index]['end'] = clone $this->startDate;
+                $isOpen = false;
+            }
+
+            $this->startDate->add($oneDay);
+            $this->adjustDayLightSavingsTime();
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array
+     * @throws Exception
+     */
+    private function makeBusinessOnly() : array
+    {
+        $output = [];
+        $index = 0;
+        $isOpen = false;
+        $oneDay = new DateInterval('P1D');
+
+        while ($this->startDate <= $this->endDate) {
+            $str = $this->startDate->format('w');
+
+            if (!$isOpen && $this->isInRange($str)) {
+                $output[$index]['start'] = clone $this->startDate;
+                $isOpen = true;
+            }
+
+            if ($isOpen && !$this->isInRange($str)) {
+                $aux = clone $this->startDate;
+                $aux->sub($oneDay);
+                $output[$index]['end'] = clone $aux;
+                $isOpen = false;
+                $index++;
+            }
+
+            if ($isOpen && ($this->startDate == $this->endDate)) {
+                $output[$index]['end'] = clone $this->startDate;
+                $isOpen = false;
+            }
+
+            $this->startDate->add($oneDay);
+            $this->adjustDayLightSavingsTime();
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param string $day
+     * @return bool
+     */
+    private function isInRange($day) :bool
+    {
+        $output = false;
+
+        foreach ($this->config->getBusinessDays() as $businessDay) {
+            if ($businessDay->getValue() === $day) {
+                $output = true;
                 break;
             }
         }
