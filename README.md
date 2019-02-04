@@ -33,9 +33,7 @@ php composer.phar update
 ```
 
 ## Usage
-To use it, first you need to create the status you are going to use 
-for representing your states.
-
+Here is a common usage example.
 ```php
 <?php
 use DavisPeixoto\ReportDates\Dates;
@@ -44,13 +42,12 @@ $date_helper = new Dates();
 $weeks = $date_helper->getWeeksBreak($from, $to);
 
 foreach ($weeks as $week) {
-    $label = $week->getLabel();
     $businessDaysAmount = $week->getBusinessDays();
     // do something with dates here
 }
 ```
 
-
+Please find out more about [usage and use cases](https://github.com/davispeixoto/dates_for_reports/blob/master/USAGE.md).
 
 ## License
 This software is licensed under the [MIT license](http://opensource.org/licenses/MIT)

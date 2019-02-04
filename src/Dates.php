@@ -26,11 +26,11 @@ class Dates
     /**
      * Dates constructor.
      *
-     * @param DatesConfig $config
+     * @param DatesConfig|null $config
      */
-    public function __construct(DatesConfig $config)
+    public function __construct(DatesConfig $config = null)
     {
-        $this->config = $config;
+        $this->config = $config ?? new DatesConfig();
     }
 
     /**
