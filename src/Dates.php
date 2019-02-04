@@ -229,15 +229,12 @@ class Dates
      */
     private function isInRange($day) :bool
     {
-        $output = false;
-
         foreach ($this->config->getBusinessDays() as $businessDay) {
             if ($businessDay->getValue() === $day) {
-                $output = true;
-                break;
+                return true;
             }
         }
 
-        return $output;
+        return false;
     }
 }

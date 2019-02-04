@@ -62,6 +62,14 @@ class WeekInterval
     }
 
     /**
+     * @return int
+     */
+    public function getTotalDays(): int
+    {
+        return (int)$this->endDate->diff($this->startDate)->format('%a') + 1;
+    }
+
+    /**
      * @return string
      */
     public function getWeekNumber(): string
@@ -91,7 +99,7 @@ class WeekInterval
         $count = 0;
 
         while ($startDate <= $this->endDate) {
-            if ($this->isBusinessDay($startDate)) {
+            if ($this->isBusinessDay($this->makeDayNumber($startDate))) {
                 $count++;
             }
 
@@ -110,6 +118,22 @@ class WeekInterval
         foreach ($this->config->getBusinessDays() as $businessDay) {
             if ($day->equals($businessDay)) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param DateTime $day
+     * @return bool|DayNumber
+     */
+    private function makeDayNumber(DateTime $day)
+    {
+        $values = DayNumber::values();
+        foreach ($values as $dayNumber) {
+            if ($dayNumber->getValue() === $day->format('w')) {
+                return $dayNumber;
             }
         }
 
